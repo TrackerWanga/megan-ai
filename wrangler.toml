@@ -1,0 +1,20 @@
+
+name = "megan-ai"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "megan-ai-db"
+database_id = ""
+
+[vars]
+FIREBASE_DB = ""
+FIREBASE_KEY = ""
+MEGAN_COINS_URL = "https://megan-coins.trackerwanga254.workers.dev"
+GEMINI_API_KEY = ""
+GNEWS_API_KEY = ""
+ENVIRONMENT = "production"
