@@ -1,89 +1,62 @@
 // ══════════════════════════════════════════════════════════
-// Authentication Middleware (uses Megan Coins Firebase)
+// Authentication Middleware — Uses Megan Auth Service
 // ══════════════════════════════════════════════════════════
 
 import { Env, User } from '../types';
-import { fbGet, fbPatch } from '../utils/firebase';
-
-const TIERS: Record<string, { daily: number; rate: number }> = {
-  bronze: { daily: 50, rate: 10 },
-  silver: { daily: 500, rate: 30 },
-  gold: { daily: 5000, rate: 100 },
-  platinum: { daily: 50000, rate: 300 },
-  diamond: { daily: 999999, rate: 1000 },
-};
 
 export async function authenticate(
   request: Request,
   env: Env,
   body?: any
 ): Promise<{ user: User | null; error?: string; status?: number }> {
-  // Check multiple places for API key
-  let apiKey =
+  const apiKey =
     request.headers.get('x-api-key') ||
     new URL(request.url).searchParams.get('api_key') ||
     body?.api_key ||
     body?.apiKey;
 
   if (!apiKey) {
-    return { user: null, error: 'API key required. Get one at megan-coins.worker.dev', status: 401 };
+    return { user: null, error: 'API key required. Get one at apis.megan.qzz.io/keys', status: 401 };
   }
 
-  // Scan users for the key (Megan Coins stores keys under users/{uid}/keys/{key})
-  let uid: string | null = null;
   try {
-    const users = await fbGet(env, 'users');
-    if (users) {
-      for (const [potentialUid, userData] of Object.entries(users)) {
-        const keys = (userData as any)?.keys;
-        if (keys && keys[apiKey] && keys[apiKey].active) {
-          uid = potentialUid;
-          break;
-        }
-      }
+    // Validate key via Auth Service
+    const res = await fetch('https://auth.megan.qzz.io/auth/verify-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: apiKey, project: 'megan-ai' }),
+    });
+    const data = await res.json() as any;
+
+    if (!data.valid || !data.user) {
+      return { user: null, error: 'Invalid or revoked API key', status: 401 };
     }
-  } catch {}
 
-  if (!uid) {
-    return { user: null, error: 'Invalid or revoked API key', status: 401 };
-  }
+    const user = data.user;
+    const today = data.usage?.today || 0;
 
-  const user = await fbGet(env, `users/${uid}`);
-  if (!user) {
-    return { user: null, error: 'User not found', status: 404 };
-  }
-
-  if (user.suspended) {
-    return { user: null, error: 'Account suspended', status: 403 };
-  }
-
-  const tier = user.tier || 'bronze';
-  const limit = TIERS[tier]?.daily || 50;
-  const today = new Date().toISOString().split('T')[0];
-  const usage = (await fbGet(env, `usage/${uid}/${today}`)) || 0;
-
-  if (usage >= limit) {
-    return {
-      user: null,
-      error: `Daily limit reached (${limit} requests). Upgrade tier or wait until tomorrow.`,
-      status: 429,
+    // Tier limits
+    const limits: Record<string, number> = {
+      bronze: 50, silver: 500, gold: 5000, platinum: 50000, diamond: 999999,
     };
+    const limit = limits[user.tier] || 50;
+
+    if (today >= limit) {
+      return { user: null, error: `Daily limit reached (${limit} requests). Upgrade your tier.`, status: 429 };
+    }
+
+    return {
+      user: {
+        uid: user.uid,
+        username: user.username || 'unknown',
+        email: user.email || '',
+        tier: user.tier || 'bronze',
+        mgc_balance: user.mgc_balance || 0,
+        api_key: apiKey,
+        country: 'KE',
+      },
+    };
+  } catch {
+    return { user: null, error: 'Auth service unavailable', status: 503 };
   }
-
-  await fbPatch(env, `usage/${uid}`, {
-    [today]: usage + 1,
-  });
-
-  return {
-    user: {
-      uid: user.uid || uid,
-      username: user.username || 'unknown',
-      email: user.email || '',
-      tier,
-      mgc_balance: user.mgc_balance || 0,
-      api_key: apiKey,
-      country: user.country || 'KE',
-      storage: user.storage_config,
-    },
-  };
 }
