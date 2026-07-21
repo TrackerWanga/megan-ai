@@ -23,6 +23,7 @@ import { siputzxGLM, siputzxQwen, siputzxDeepSeek, siputzxBible, siputzxDuckAI }
 import { chatEverywhere } from './providers/chat-everywhere';
 import { pollinationsChat, pollinationsImage } from './providers/pollinations';
 import { geminiChat, geminiVision } from './providers/gemini';
+import { geminiWebChat } from './providers/gemini-web';
 import { duckduckgoSearch, gnewsSearch } from './providers/search';
 import { googleTTS } from './providers/tts';
 import { meganPersonas, getPersona, getPersonasByCategory, getPersonasByCountry } from './personas';
@@ -47,7 +48,7 @@ async function handleAI(request: Request, env: Env, user: User, feature: 'chat'|
   if (!params.prompt && feature !== 'image') return error('Parameter "prompt" or "q" is required');
   let providers: any[] = [];
   switch (feature) {
-    case 'chat': providers = [pollinationsChat,chatEverywhere,siputzxGLM,siputzxQwen,workersAIGLM,workersAIQwen,workersAIDeepSeek,workersAIChat,siputzxDeepSeek,geminiChat]; break;
+    case 'chat': providers = [geminiWebChat,pollinationsChat,chatEverywhere,siputzxGLM,siputzxQwen,workersAIGLM,workersAIQwen,workersAIDeepSeek,workersAIChat,siputzxDeepSeek,geminiChat]; break;
     case 'vision': providers = [workersAIVision,geminiVision]; break;
     case 'tts': providers = [workersAITTS,googleTTS]; break;
     case 'stt': providers = [workersAISTT]; break;
